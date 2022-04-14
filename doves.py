@@ -4,7 +4,7 @@ import sys
 
 from PyQt6.QtWidgets import (QMainWindow, QPushButton,
         QHBoxLayout, QVBoxLayout, QApplication, QToolTip, QMessageBox)
-from PyQt6.QtGui import (QFont)
+from PyQt6.QtGui import (QFont, QAction, QIcon)
 
 
 class Example(QMainWindow):
@@ -18,6 +18,8 @@ class Example(QMainWindow):
     def initUI(self):
         self.toolTips()
         self.quitButton()
+
+        self.setStatusBar()
         
         self.statusBar().showMessage("ready")
 
@@ -59,6 +61,20 @@ class Example(QMainWindow):
         
         qr.moveCenter(cp)
         self.move(qr.topLeft())
+
+    def setStatusBar(self):
+        menubar = self.menuBar()
+        exitAct = self.statusBarExit()
+
+        fileMenu = menubar.addMenu('&File')
+        fileMenu.addAction(exitAct)
+
+    def statusBarExit(self):
+        exitAct = QAction(QIcon("icons/close.png"), "&Exit", self)
+        exitAct.setShortcut('Ctrl+Q')
+        exitAct.setStatusTip('exit application')
+        exitAct.triggered.connect(QApplication.instance().quit)
+        return(exitAct)
 
 
 def main():
