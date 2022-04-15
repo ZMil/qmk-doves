@@ -1,4 +1,7 @@
+hid==1.0.5
+psutil==5.9.0
 PyQt6==6.2.3
 PyQt6-Qt6==6.2.4
 PyQt6-sip==13.2.1
+pywin32==300
 winsdk==1.0.0b3
