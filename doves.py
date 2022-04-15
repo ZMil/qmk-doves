@@ -2,12 +2,26 @@ import os
 import sys
 import utils
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QRunnable, QObject, pyqtSlot, pyqtSignal, QTimer, QThreadPool
 from PyQt6.QtWidgets import (QMainWindow, QPushButton,
         QHBoxLayout, QVBoxLayout, QApplication, QToolTip, QMessageBox,
         QLabel, QCheckBox)
 from PyQt6.QtGui import (QFont, QAction, QIcon, QKeyEvent)
 from configparser import ConfigParser
+
+# workers testing
+class QMKActiveSignals(QObject):
+    result = pyqtSignal(str)
+
+class QMKActiveWorker(QRunnable):
+    def __init__(self, signals):
+        super(QMKActiveWorker, self).__init__()
+        self.signals = signals
+    
+    def run(self):
+        value = utils.qmkactive()
+        self.signals.result.emit(value)
+
 
 class Example(QMainWindow):
 
@@ -16,12 +30,16 @@ class Example(QMainWindow):
 
         self.initUI()
 
+        self.initWorkers()
+
         # here we initialize the hid class
         abspath = os.path.abspath(__file__)
         dirname = os.path.dirname(abspath)
         os.chdir(dirname)
         config = os.path.join(dirname, 'config.ini')
-
+        # this actually connects us to the device
+        # but there's no way for the device to know that
+        # without sending something to it.
         self.device = utils.QMKDevice(config)
         
         
@@ -40,6 +58,26 @@ class Example(QMainWindow):
         self.center()
         self.setWindowTitle('doves')
         self.show()
+
+    def initWorkers(self):
+        # workers testing
+        self.threadpool = QThreadPool()
+        self.signals = QMKActiveSignals()
+        self.signals.result.connect(self.process_result)
+        self.start_workers()
+
+# testing workers
+    def start_workers(self):
+        active = QMKActiveWorker(signals=self.signals)
+        self.threadpool.start(active)
+        QTimer.singleShot(1000, self.start_workers)
+
+    @pyqtSlot(str)
+    def process_result(self, data):
+        active = data
+        self.activeLabel.setText(f"Active: {active}")
+
+# end workers testing
 
     def toolTips(self):
         QToolTip.setFont(QFont('SansSerif', 10))
@@ -93,6 +131,10 @@ class Example(QMainWindow):
     def initLabels(self):
         lbl = QLabel("QMK toolkit", self)
         lbl.move(10, 20)
+
+
+        self.activeLabel = QLabel(f"Active: unknown", self)
+        self.activeLabel.move(10, 100) 
 
     def keyPressEvent(self, a0) -> None:
         '''
