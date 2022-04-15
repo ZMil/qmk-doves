@@ -1,0 +1,1 @@
+from utils.qmkhid import QMKDevice
