@@ -1,26 +1,13 @@
 import os
 import sys
+from xml.etree.ElementTree import TreeBuilder
 import utils
 
-from PyQt6.QtCore import Qt, QRunnable, QObject, pyqtSlot, pyqtSignal, QTimer, QThreadPool
+from PyQt6.QtCore import (Qt, pyqtSlot, QTimer, QThreadPool)
 from PyQt6.QtWidgets import (QMainWindow, QPushButton,
         QHBoxLayout, QVBoxLayout, QApplication, QToolTip, QMessageBox,
-        QLabel, QCheckBox)
+        QLabel, QCheckBox, QSystemTrayIcon, QStyle, QMenu)
 from PyQt6.QtGui import (QFont, QAction, QIcon, QKeyEvent)
-from configparser import ConfigParser
-
-# workers testing
-class QMKActiveSignals(QObject):
-    result = pyqtSignal(str)
-
-class QMKActiveWorker(QRunnable):
-    def __init__(self, signals):
-        super(QMKActiveWorker, self).__init__()
-        self.signals = signals
-    
-    def run(self):
-        value = utils.qmkactive()
-        self.signals.result.emit(value)
 
 
 class Example(QMainWindow):
@@ -28,9 +15,12 @@ class Example(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.initUI()
+        self.initVars()
 
         self.initWorkers()
+        
+        self.initUI()
+
 
         # here we initialize the hid class
         abspath = os.path.abspath(__file__)
@@ -42,13 +32,19 @@ class Example(QMainWindow):
         # without sending something to it.
         self.device = utils.QMKDevice(config)
         
-        
+    def initVars(self):
+        self.stateAutoSwitch = True
+        self.stateHIDConnect = False
+        self.hasStateChanged = False
+        self.previousActiveState = None
+
     def initUI(self):
         self.toolTips()
-        self.quitButton()
+        # self.quitButton()
         self.initLabels()
         self.initCheckbox()
         self.initToggleButton()
+        self.initSysTray()
 
         self.setStatusBar()
         
@@ -59,25 +55,92 @@ class Example(QMainWindow):
         self.setWindowTitle('doves')
         self.show()
 
+    def initSysTray(self):
+        self.tray_icon = QSystemTrayIcon(self)
+
+        menu = QMenu("doves")
+        openAction = QAction("open", self)
+        openAction.triggered.connect(self._sysTrayOpen)
+        menu.addAction(openAction)
+
+        self.tray_icon.setContextMenu(menu)
+
+        icon = QIcon("icons/dove.png")
+        self.tray_icon.setIcon(icon)
+        self.setVisible(True)
+
+        self.tray_icon.activated.connect(self._trayIconClicked)
+
+    def _sysTrayOpen(self):
+        self.show()
+        self.tray_icon.hide()
+
+    def _trayIconClicked(self, reason):
+        if reason == self.tray_icon.ActivationReason.DoubleClick:
+            self.show()
+            self.tray_icon.hide()
+        elif reason == self.tray_icon.ActivationReason.Context:
+            pass
+
+
     def initWorkers(self):
-        # workers testing
         self.threadpool = QThreadPool()
-        self.signals = QMKActiveSignals()
-        self.signals.result.connect(self.process_result)
+
         self.start_workers()
 
-# testing workers
     def start_workers(self):
-        active = QMKActiveWorker(signals=self.signals)
+        self._startActiveWorker()
+        self._startTimeWorker()
+
+    def _startActiveWorker(self):
+        '''
+        this returns the active window every second
+
+        connects to slot _processActiveSignal
+        '''
+        self.activeSignal = utils.QMKActiveSignal()
+        self.activeSignal.result.connect(self._processActiveSignal)
+        self._loopActiveWorker()
+
+    def _loopActiveWorker(self):
+        active = utils.QMKActiveWorker(signals=self.activeSignal)
+
         self.threadpool.start(active)
-        QTimer.singleShot(1000, self.start_workers)
+        QTimer.singleShot(1000, self._loopActiveWorker)
 
     @pyqtSlot(str)
-    def process_result(self, data):
-        active = data
-        self.activeLabel.setText(f"Active: {active}")
+    def _processActiveSignal(self, data):
+        '''
+        decides what to do with the current active window
+        '''
 
-# end workers testing
+        # this is so if you manually change your layer, it doesn't automatically switch it back right away
+        self.hasStateChanged = data != self.previousActiveState
+        self.previousActiveState = data if data != self.previousActiveState else self.previousActiveState
+        
+        self.activeLabel.setText(f"Active: {data}")
+        if self.stateHIDConnect and self.stateAutoSwitch and self.hasStateChanged:
+            if data in ["Risk of Rain 2.exe", "r5apex.exe"]:
+                self.device.set_layer(layer=2)
+            elif data in ["VALORANT-Win64-Shipping.exe"]:
+                self.device.set_layer(layer=1)
+            else:
+                self.device.set_layer(layer=0)
+
+    def _startTimeWorker(self):
+        self.timeSignal = utils.TimeSignal()
+        self.timeSignal.result.connect(self._processTimeSignal)
+        self._loopTimeSignal()
+
+    def _loopTimeSignal(self):
+        current_time = utils.TimeWorker(signals=self.timeSignal)
+
+        self.threadpool.start(current_time)
+        QTimer.singleShot(1000, self._loopTimeSignal)
+
+    @pyqtSlot(str)
+    def _processTimeSignal(self, data):
+        pass
 
     def toolTips(self):
         QToolTip.setFont(QFont('SansSerif', 10))
@@ -96,6 +159,13 @@ class Example(QMainWindow):
         """
         eventually should become quit or minimize to taskbar
         """
+        if self.cbSysTray.isChecked():
+            event.ignore()
+            self.hide()
+            self.tray_icon.show()
+        else:
+            self.device.close()
+        return
         reply = QMessageBox.question(self, "Message", 
                     "Are you sure to quit?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.Yes)
 
@@ -107,7 +177,8 @@ class Example(QMainWindow):
     
     def center(self):
         """
-        useful for center the window. helpful. and will be used"""
+        useful for center the window. helpful. and will be used
+        """
         qr = self.frameGeometry()
         cp = self.screen().availableGeometry().center()
         
@@ -146,18 +217,27 @@ class Example(QMainWindow):
     def initCheckbox(self):
         cb = QCheckBox("Auto Switch", self)
         cb.move(10, 35)
-        cb.toggle()
+        cb.setChecked(self.stateAutoSwitch)
         cb.stateChanged.connect(self.autoSwitchChange)
+
+        self._initSysTrayCheckbox()
+
+    def _initSysTrayCheckbox(self):
+        '''
+        cbSysTray = checkbox system tray
+        '''
+        self.cbSysTray = QCheckBox("Minimize to Tray", self)
+        self.cbSysTray.move(150, 35)
+
     
     def autoSwitchChange(self, state):
         '''
         eventually use to toggle features on host app
         '''
         if state == Qt.CheckState.Checked.value:
-            print("value checked")
-            pass
+            self.stateAutoSwitch = True
         else:
-            pass
+            self.stateAutoSwitch = False
 
     def initToggleButton(self):
         hidToggle = QPushButton("hid", self)
@@ -167,9 +247,11 @@ class Example(QMainWindow):
 
     def toggleHIDconnect(self, pressed):
         if pressed:
-            self.device.write("hi") # this can be anything
+            self.device.write("ping") # this can be anything
+            self.stateHIDConnect = True
         else:
             self.device.disconnect()
+            self.stateHIDConnect = False
 
 def main():
 
