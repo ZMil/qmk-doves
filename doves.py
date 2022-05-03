@@ -1,6 +1,8 @@
 import os
 import sys
 from xml.etree.ElementTree import TreeBuilder
+
+from hid import HIDException
 import utils
 
 from PyQt6.QtCore import (Qt, pyqtSlot, QTimer, QThreadPool)
@@ -37,6 +39,9 @@ class Example(QMainWindow):
         self.stateHIDConnect = False
         self.hasStateChanged = False
         self.previousActiveState = None
+
+        self.previousTime = None
+        self.timeChange = False
 
     def initUI(self):
         self.toolTips()
@@ -140,7 +145,23 @@ class Example(QMainWindow):
 
     @pyqtSlot(str)
     def _processTimeSignal(self, data):
-        pass
+        self.timeChange = data != self.previousTime
+        self.previousTime = data if data != self.previousTime else self.previousTime
+
+        
+        if self.cbTime.isChecked() and self.stateHIDConnect and self.timeChange:
+            # write time to device
+            self.device.send_line(line=8, data=data)
+            # print(data)
+        else:
+            pass
+            # try:
+            #     self.device.clear_line(line=8)
+            # except HIDException:
+            #     pass
+        return
+            
+
 
     def toolTips(self):
         QToolTip.setFont(QFont('SansSerif', 10))
@@ -221,6 +242,7 @@ class Example(QMainWindow):
         cb.stateChanged.connect(self.autoSwitchChange)
 
         self._initSysTrayCheckbox()
+        self._initTimeWorkerCheckbox()
 
     def _initSysTrayCheckbox(self):
         '''
@@ -252,6 +274,11 @@ class Example(QMainWindow):
         else:
             self.device.disconnect()
             self.stateHIDConnect = False
+
+    def _initTimeWorkerCheckbox(self):
+        self.cbTime = QCheckBox("HID time", self)
+        self.cbTime.move(150, 50)
+    
 
 def main():
 
