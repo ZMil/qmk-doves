@@ -89,8 +89,6 @@ class QMKDevice():
                 self.device = hid.Device(path=device['path'])
                 break
 
-
-
     def get_device_info(self):
         print("Device manufacturer: {}".format(self.device.manufacturer))
         print("Product: {}".format(self.device.product))
@@ -113,7 +111,7 @@ class QMKDevice():
             return(None)
 
     def write_then_read(self, data):
-        ''' used for getting info about the state of the device'''
+        '''used for getting info about the state of the device'''
         self.write(data)
         data = self.read()
         data = int.from_bytes(data, 'little')
@@ -148,38 +146,20 @@ class QMKDevice():
         return out
 
     def clear_screen(self):
-        '''clears the screen'''
+        '''
+        clears the screen
+        this will cause screen flicker. It instantly clears the entire screen
+        and then the screen is repopulated with whatever data should be there
+        '''
         data = [self.cmd_erase, self.cmd_erase]
         self.write(data)
 
     def clear_line(self, line):
         '''clears a given line'''
-        data = [self.cmd_erase, line]
+        # data = [self.cmd_erase, line]
+        # this seems to not cause the screen to flicker.
+        data = [self.cmd_line, line, "     "]
         self.write(data)
-
-    def send_pixels(self, pixels, value=1, offset=(0,0)):
-        '''turns on one pixel'''
-        data = [value]
-        for pixel in pixels:
-            data += list(sum(x) for x in zip(pixel, offset))
-        data.insert(0, self.cmd_pixel)
-        data.append(self.end_pixel)
-        self.write(data)
-
-    def prepare_pixel_buffer(self, pixels, value, offset=(0,0)):
-        def chunk(pixel_list, size=int(self.raw_epsize/2)-2):
-            for x in range(0, len(pixel_list), size):
-                yield pixel_list[x:x+size]
-
-        for pixel_group in chunk(pixels):
-            self.send_pixels(pixels=pixel_group, value=value, offset=offset)
-
-    def turn_pixels_on(self, pixels, offset):
-        self.prepare_pixel_buffer(pixels=pixels, value=1, offset=offset)
-
-    def turn_pixels_off(self, pixels, offset):
-        self.prepare_pixel_buffer(pixels=pixels, value=0, offset=offset)
-
 
     def send_line(self, line, data):
         '''sends data to an oled line'''
@@ -191,31 +171,6 @@ class QMKDevice():
         '''send raw data
         DO NOT DO THIS unless you know what you are sending'''
         self.device.write(data)
-
-    def oled_scroll_off(self):
-        '''stops oled scroll'''
-        data = [self.cmd_scroll, self.scroll_off]
-        self.write(data)
-
-    def oled_scroll_right(self):
-        '''scrolls oled buffer right'''
-        data = [self.cmd_scroll, self.scroll_rgt]
-        self.write(data)
-
-    def oled_scroll_left(self):
-        '''scrolls oled buffer left'''
-        data = [self.cmd_scroll, self.scroll_lft]
-        self.write(data)
-
-    def oled_scroll_set_speed(self, speed):
-        '''sets oled scroll speed'''
-        data = [self.cmd_scroll, self.scrl_speed, speed]
-        self.write(data)
-
-    def oled_scroll_set_area(self, start, end):
-        '''defines oled scroll area'''
-        data = [self.cmd_scroll, self.scrl_area, start, end]
-        self.write(data)
 
     def oled_set_brightness(self, brightness):
         '''sets the oled brightness'''
@@ -230,43 +185,7 @@ class QMKDevice():
     def vibrate(self, speed):
         pass
 
-    def scroll_text(self, line, text, delay=.1, direction=True):
-        '''
-        scrolls any text
-           inputs:
-               line:  the line number to write text to
-               text:  the text to scroll
-               delay: the delay between each frame
-               direction: True=left, False=right
-        '''
-        if len(text) < self.cols:
-            text = text.ljust(self.cols + 1)
-        else:
-            text = text.ljust(len(text) + 5)
-        def gen_data(text):
-            data = list(range(self.cols))
-            for index, letter in enumerate(text):
-                try:
-                    data[index] = letter
-                except:
-                    data = "".join(data)
-                    return(data)
-        data = gen_data(text)
-        self.send_line(line, data)
-        sleep(delay)
-        for rotate in range(len(text)):
-            text = list(text)
-            if direction:
-                text.append(text.pop(0))
-            else:
-                text.insert(0, text.pop())
-            text = "".join(text)
-            data = gen_data(text)
-            self.send_line(line, data)
-            sleep(delay)
-
-
-    def get_oled_state(self):
+    def oled_get_state(self):
         '''
         returns oled state
         True = on
@@ -316,19 +235,6 @@ class QMKDevice():
         max_lines = self.write_then_read(data)
         return max_lines
 
-    def draw_picture(self, file_path, origin):
-        '''draws a binary image onto the screen'''
-        pixels = []
-        offset = origin
-        with open(file_path) as f:
-            lines = f.readlines()
-
-        for pixel_y, line in enumerate(lines):
-            for pixel_x, bit in enumerate(line):
-                if bit == '1':
-                    pixels.append((pixel_x, pixel_y))
-        self.turn_pixels_on(pixels=pixels, offset=offset)
-
     def set_layer(self, layer):
         data = [self.layer, layer]
         self.write(data)
@@ -337,35 +243,3 @@ class QMKDevice():
         self.clear_screen()
         data = [self.exit]
         self.write(data)
-
-
-def main():
-    abspath = os.path.abspath(__file__)
-    dirname = os.path.dirname(abspath)
-    os.chdir(dirname)
-    config_path = os.path.join(dirname, 'config.ini')
-
-    try:
-        me = QMKDevice(config_path)
-        me.clear_screen()
-        # me.send_line(line=0, data='Hello World!')
-        # me.draw_picture(file_path='billybreathes.txt', origin=(0,0))
-        # me.get_device_info()
-        # print(me.read())
-        # print(me.get_layer())
-        # while True:
-        #     result = me.read(timeout=10000)
-        #     if result:
-        #         print(result)
-        app_layers = {"Spotify.exe": 1,
-                      "Discord.exe": 2}
-
-
-
-
-        # me.scroll_text(line=0, text="What direction will this scroll?", direction=True)
-    finally:
-        me.close()
-
-if __name__ == '__main__':
-    main()
