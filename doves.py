@@ -98,19 +98,19 @@ class Example(QMainWindow):
         self.start_workers()
 
     def start_workers(self):
-        # self._startActiveWorker()
+        self._startActiveWorker()
         self._startTimeWorker()
         self._startWeatherWorker()
 
-    # def _startActiveWorker(self):
-    #     '''
-    #     this returns the active window every second
+    def _startActiveWorker(self):
+        '''
+        this returns the active window every second
 
-    #     connects to slot _processActiveSignal
-    #     '''
-    #     # self.activeSignal = utils.QMKActiveSignal()
-    #     self.activeSignal.result.connect(self._processActiveSignal)
-    #     self._loopActiveWorker()
+        connects to slot _processActiveSignal
+        '''
+        self.activeSignal = utils.QMKActiveSignal()
+        self.activeSignal.result.connect(self._processActiveSignal)
+        self._loopActiveWorker()
 
     def _loopActiveWorker(self):
         active = utils.QMKActiveWorker(signals=self.activeSignal)
