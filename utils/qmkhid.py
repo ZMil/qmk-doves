@@ -1,3 +1,12 @@
+import os
+
+os.environ["PATH"] += os.pathsep + os.path.dirname(os.path.abspath(__file__))
+
+import ctypes, ctypes.util
+hidlibpath = os.path.realpath(ctypes.util.find_library("hidapi.dll"))
+print(hidlibpath)
+hidapi = ctypes.cdll.LoadLibrary(hidlibpath)
+
 import hid
 import os
 from configparser import ConfigParser
