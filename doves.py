@@ -121,7 +121,6 @@ class Example(QMainWindow):
 
     @pyqtSlot(str)
     def _processActiveSignal(self, data):
-        print(data)
         '''
         decides what to do with the current active window
         '''
@@ -140,7 +139,6 @@ class Example(QMainWindow):
                 self.device.set_layer(layer=0)
 
     def _startTimeWorker(self):
-        print('startTimeWorker')
         self.timeSignal = utils.TimeSignal()
         self.timeSignal.result.connect(self._processTimeSignal)
         self._loopTimeSignal()
@@ -184,7 +182,6 @@ class Example(QMainWindow):
 
     @pyqtSlot(str)
     def _processTimeSignal(self, data):
-        # print('_processTimeSignal', data)
         self.timeChange = data != self.previousTime
         self.previousTime = data if data != self.previousTime else self.previousTime
         
