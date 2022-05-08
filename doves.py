@@ -46,7 +46,6 @@ class Example(QMainWindow):
         self.previousTime = None
         self.timeChange = False
         self.previousWeatherData = ''
-        self.active_lines = [0]
 
     def initUI(self):
         self.toolTips()
@@ -156,20 +155,12 @@ class Example(QMainWindow):
 
     def clear_screen(self):
         for index in range(0, 16):
-            if not index in self.active_lines:
-                self.device.send_line(line=index, data='')
+            self.device.send_line(line=index, data='')
 
     @pyqtSlot(str)
     def _processWeatherSignal(self, data):
         weather_data_diff = self.previousWeatherData != data
         if weather_data_diff and self.stateHIDConnect and self.device:
-            
-            new_lines = self.active_lines
-            new_lines.append(3)
-            self.active_lines = new_lines
-
-            # self.clear_screen()
-
             self.device.send_line(line=8, data=data)
             self.previousWeatherData = data
 
@@ -186,7 +177,6 @@ class Example(QMainWindow):
         self.previousTime = data if data != self.previousTime else self.previousTime
         
         if self.cbTime.isChecked() and self.stateHIDConnect and self.timeChange:
-            # self.clear_screen()
             # write time to device
             if not self.military_time:
                 split_data = data.split(':')
