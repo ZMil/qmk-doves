@@ -2,7 +2,7 @@ import os
 import sys
 from xml.etree.ElementTree import TreeBuilder
 
-from hid import HIDException
+# from hid import HIDException
 import utils
 
 from PyQt6.QtCore import (Qt, pyqtSlot, QTimer, QThreadPool)
