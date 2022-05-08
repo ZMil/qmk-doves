@@ -1,7 +1,6 @@
 hid==1.0.5
 psutil==5.9.0
-PyQt6==6.2.3
-PyQt6-Qt6==6.2.4
-PyQt6-sip==13.2.1
+PyQt6==6.3.0
 pywin32==303
-winsdk==1.0.0b3
+requests==2.27.1
+win32gui==221.6
