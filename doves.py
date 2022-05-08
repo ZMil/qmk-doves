@@ -36,6 +36,8 @@ class Example(QMainWindow):
         self.clear_screen()
         
     def initVars(self):
+        self.military_time = False
+
         self.stateAutoSwitch = True
         self.stateHIDConnect = False
         self.hasStateChanged = False
@@ -187,27 +189,23 @@ class Example(QMainWindow):
         self.previousTime = data if data != self.previousTime else self.previousTime
         
         if self.cbTime.isChecked() and self.stateHIDConnect and self.timeChange:
-            print(data)
             # self.clear_screen()
             # write time to device
-            split_data = data.split(':')
-            hours = int(split_data[0])
-            if (hours > 12):
-                hours = hours - 12
-                if hours < 10:
-                    hours = '0' + str(hours)
-                else:
-                    hours = str(hours)
-                data = hours + ':' + split_data[-1]
+            if not self.military_time:
+                split_data = data.split(':')
+                hours = int(split_data[0])
+                if (hours > 12):
+                    hours = hours - 12
+                    if hours < 10:
+                        hours = '0' + str(hours)
+                    else:
+                        hours = str(hours)
+                    data = hours + ':' + split_data[-1]
+                    
+                new_lines = self.active_lines
+                new_lines.append(2)
+                self.active_lines = new_lines
 
-            print(data)
-                
-            new_lines = self.active_lines
-            new_lines.append(2)
-            self.active_lines = new_lines
-
-            # self.clear_screen()s
-            print(data)
             self.device.send_line(line=1, data=data)
         else:
             pass
