@@ -33,6 +33,7 @@ class Example(QMainWindow):
         # but there's no way for the device to know that
         # without sending something to it.
         self.device = utils.QMKDevice(config)
+        self.clear_screen()
         
     def initVars(self):
         self.stateAutoSwitch = True
@@ -42,6 +43,8 @@ class Example(QMainWindow):
 
         self.previousTime = None
         self.timeChange = False
+        self.previousWeatherData = ''
+        self.active_lines = [0]
 
     def initUI(self):
         self.toolTips()
@@ -94,18 +97,19 @@ class Example(QMainWindow):
         self.start_workers()
 
     def start_workers(self):
-        self._startActiveWorker()
+        # self._startActiveWorker()
         self._startTimeWorker()
+        self._startWeatherWorker()
 
-    def _startActiveWorker(self):
-        '''
-        this returns the active window every second
+    # def _startActiveWorker(self):
+    #     '''
+    #     this returns the active window every second
 
-        connects to slot _processActiveSignal
-        '''
-        self.activeSignal = utils.QMKActiveSignal()
-        self.activeSignal.result.connect(self._processActiveSignal)
-        self._loopActiveWorker()
+    #     connects to slot _processActiveSignal
+    #     '''
+    #     # self.activeSignal = utils.QMKActiveSignal()
+    #     self.activeSignal.result.connect(self._processActiveSignal)
+    #     self._loopActiveWorker()
 
     def _loopActiveWorker(self):
         active = utils.QMKActiveWorker(signals=self.activeSignal)
@@ -115,6 +119,7 @@ class Example(QMainWindow):
 
     @pyqtSlot(str)
     def _processActiveSignal(self, data):
+        print(data)
         '''
         decides what to do with the current active window
         '''
@@ -133,6 +138,7 @@ class Example(QMainWindow):
                 self.device.set_layer(layer=0)
 
     def _startTimeWorker(self):
+        print('startTimeWorker')
         self.timeSignal = utils.TimeSignal()
         self.timeSignal.result.connect(self._processTimeSignal)
         self._loopTimeSignal()
@@ -143,16 +149,66 @@ class Example(QMainWindow):
         self.threadpool.start(current_time)
         QTimer.singleShot(1000, self._loopTimeSignal)
 
+    def _startWeatherWorker(self):
+        self.weatherSignal = utils.Weather()
+        self.weatherSignal.result.connect(self._processWeatherSignal)
+        self._loopWeatherSignal()
+
+    def clear_screen(self):
+        for index in range(0, 16):
+            if not index in self.active_lines:
+                self.device.send_line(line=index, data='')
+
+    @pyqtSlot(str)
+    def _processWeatherSignal(self, data):
+        weather_data_diff = self.previousWeatherData != data
+        if weather_data_diff and self.stateHIDConnect and self.device:
+            
+            new_lines = self.active_lines
+            new_lines.append(3)
+            self.active_lines = new_lines
+
+            # self.clear_screen()
+
+            self.device.send_line(line=8, data=data)
+            self.previousWeatherData = data
+
+
+    def _loopWeatherSignal(self):
+        weather = utils.WeatherWorker(signals=self.weatherSignal)
+
+        self.threadpool.start(weather)
+        QTimer.singleShot(1000, self._loopWeatherSignal)
+
     @pyqtSlot(str)
     def _processTimeSignal(self, data):
+        # print('_processTimeSignal', data)
         self.timeChange = data != self.previousTime
         self.previousTime = data if data != self.previousTime else self.previousTime
-
         
         if self.cbTime.isChecked() and self.stateHIDConnect and self.timeChange:
+            print(data)
+            # self.clear_screen()
             # write time to device
-            self.device.send_line(line=8, data=data)
-            # print(data)
+            split_data = data.split(':')
+            hours = int(split_data[0])
+            if (hours > 12):
+                hours = hours - 12
+                if hours < 10:
+                    hours = '0' + str(hours)
+                else:
+                    hours = str(hours)
+                data = hours + ':' + split_data[-1]
+
+            print(data)
+                
+            new_lines = self.active_lines
+            new_lines.append(2)
+            self.active_lines = new_lines
+
+            # self.clear_screen()s
+            print(data)
+            self.device.send_line(line=1, data=data)
         else:
             pass
             # try:
@@ -160,8 +216,7 @@ class Example(QMainWindow):
             # except HIDException:
             #     pass
         return
-            
-
+        
 
     def toolTips(self):
         QToolTip.setFont(QFont('SansSerif', 10))
