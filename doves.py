@@ -188,10 +188,6 @@ class Example(QMainWindow):
                     else:
                         hours = str(hours)
                     data = hours + ':' + split_data[-1]
-                    
-                new_lines = self.active_lines
-                new_lines.append(2)
-                self.active_lines = new_lines
 
             self.device.send_line(line=1, data=data)
         else:
