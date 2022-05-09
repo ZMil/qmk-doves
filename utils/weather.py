@@ -92,6 +92,9 @@ def startWeatherMonitor():
             f"high: {weather.get('temp').get('high')}" + \
             f"rain: {weather.get('rain')}"
 
+        screen = f"{weather.get('temp').get('now')}\n\n" + \
+            f"{description}"
+
         # // Set this to be the latest weather info
         return screen
         
