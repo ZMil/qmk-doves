@@ -2,7 +2,6 @@ import os
 import sys
 from xml.etree.ElementTree import TreeBuilder
 
-# from hid import HIDException
 import utils
 
 from PyQt6.QtCore import (Qt, pyqtSlot, QTimer, QThreadPool)
@@ -33,8 +32,12 @@ class Example(QMainWindow):
         # but there's no way for the device to know that
         # without sending something to it.
         self.device = utils.QMKDevice(config)
+        self.toggleHIDconnect(True)
+        # self.clear_screen()
         
     def initVars(self):
+        self.military_time = False
+
         self.stateAutoSwitch = True
         self.stateHIDConnect = False
         self.hasStateChanged = False
@@ -42,6 +45,7 @@ class Example(QMainWindow):
 
         self.previousTime = None
         self.timeChange = False
+        self.previousWeatherData = ''
 
     def initUI(self):
         self.toolTips()
@@ -96,6 +100,7 @@ class Example(QMainWindow):
     def start_workers(self):
         self._startActiveWorker()
         self._startTimeWorker()
+        self._startWeatherWorker()
 
     def _startActiveWorker(self):
         '''
@@ -143,25 +148,57 @@ class Example(QMainWindow):
         self.threadpool.start(current_time)
         QTimer.singleShot(1000, self._loopTimeSignal)
 
+    def _startWeatherWorker(self):
+        self.weatherSignal = utils.Weather()
+        self.weatherSignal.result.connect(self._processWeatherSignal)
+        self._loopWeatherSignal()
+
+    def clear_screen(self):
+        for index in range(0, 16):
+            self.device.send_line(line=index, data='')
+
     @pyqtSlot(str)
-    def _processTimeSignal(self, data):
-        self.timeChange = data != self.previousTime
-        self.previousTime = data if data != self.previousTime else self.previousTime
+    def _processWeatherSignal(self, data, restart: bool=False):
+        weather_data_diff = self.previousWeatherData != data
+        if (weather_data_diff or restart) and self.stateHIDConnect and self.device:
+            self.device.send_line(line=5, data=data)
+            self.previousWeatherData = data
 
-        
-        if self.cbTime.isChecked() and self.stateHIDConnect and self.timeChange:
-            # write time to device
-            self.device.send_line(line=8, data=data)
-            # print(data)
-        else:
-            pass
-            # try:
-            #     self.device.clear_line(line=8)
-            # except HIDException:
-            #     pass
-        return
+
+    def _loopWeatherSignal(self):
+        weather = utils.WeatherWorker(signals=self.weatherSignal)
+
+        self.threadpool.start(weather)
+        QTimer.singleShot(100000, self._loopWeatherSignal)
+
+    @pyqtSlot(str)
+    def _processTimeSignal(self, data, restart: bool=False):
+        if self.stateHIDConnect:
+            self.timeChange = data != self.previousTime or not self.previousTime
+            if self.timeChange:
+                self.previousTime = data
             
-
+            if self.timeChange or restart:
+                # write time to device
+                if not self.military_time:
+                    split_data = data.split(':')
+                    hours = int(split_data[0])
+                    if (hours > 12):
+                        hours = hours - 12
+                        if hours < 10:
+                            hours = '0' + str(hours)
+                        else:
+                            hours = str(hours)
+                        data = hours + ':' + split_data[-1]
+                self.device.send_line(line=3, data=data)
+            else:
+                pass
+                # try:
+                #     self.device.clear_line(line=8)
+                # except HIDException:
+                #     pass
+            return
+        
 
     def toolTips(self):
         QToolTip.setFont(QFont('SansSerif', 10))
@@ -264,19 +301,26 @@ class Example(QMainWindow):
     def initToggleButton(self):
         hidToggle = QPushButton("hid", self)
         hidToggle.setCheckable(True)
+        hidToggle.setChecked(True)
         hidToggle.move(10, 55)
         hidToggle.clicked[bool].connect(self.toggleHIDconnect)
 
     def toggleHIDconnect(self, pressed):
         if pressed:
             self.device.write("ping") # this can be anything
+            self.clear_screen()
             self.stateHIDConnect = True
+            if self.weatherSignal and self.previousWeatherData:
+                self._processWeatherSignal(self.previousWeatherData, restart=True)
+            if self.timeSignal and self.previousTime:
+                self._processTimeSignal(self.previousTime, restart=True)
         else:
             self.device.disconnect()
             self.stateHIDConnect = False
 
     def _initTimeWorkerCheckbox(self):
         self.cbTime = QCheckBox("HID time", self)
+        self.cbTime.setChecked(True)
         self.cbTime.move(150, 50)
     
 

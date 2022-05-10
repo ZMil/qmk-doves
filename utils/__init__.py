@@ -5,3 +5,4 @@ if os.name == 'nt':
     from utils.active import *
 from utils.time import *
 from utils import worker
+from utils.weather import *
