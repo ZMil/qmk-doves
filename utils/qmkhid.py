@@ -1,11 +1,11 @@
 import os
+if os.name == 'nt':
+    # If Windows
+    os.environ["PATH"] += os.pathsep + os.path.dirname(os.path.abspath(__file__))
 
-os.environ["PATH"] += os.pathsep + os.path.dirname(os.path.abspath(__file__))
-
-import ctypes, ctypes.util
-hidlibpath = os.path.realpath(ctypes.util.find_library("hidapi.dll"))
-print(hidlibpath)
-hidapi = ctypes.cdll.LoadLibrary(hidlibpath)
+    import ctypes, ctypes.util
+    hidlibpath = os.path.realpath(ctypes.util.find_library("hidapi.dll"))
+    hidapi = ctypes.cdll.LoadLibrary(hidlibpath)
 
 import hid
 import os
